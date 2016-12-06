@@ -1,22 +1,44 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#define posibleChar	 1024	//Max readable chars from file.
+#define posibleChar	 10240	//Max readable chars from file.
 #define mssEmail 16			//MeSage String for Email.
 #define mssSubject 32		//MeSage String for Subject.
 #define mssBody 1024		//MeSage String for Body.
 #define maxToken 20
-typedef struct {
+typedef struct next_email{
 	int mailNumber;
 	char subject[mssSubject];
 	char body[mssBody];
+	struct next_email *next;
 } email;
 
-typedef struct {
+typedef struct next_token{
 	char name[maxToken];
 	int value;
+	struct next_token *next;
 } token;
 
+typedef struct {
+	email *noSpam,
+		*spam;
+} category;
+
+
+/*
+	I can only read posibleChar characters from a file.
+	If the file finish before posibleChar,
+	then my job ends.
+*/
+char *readingFile(FILE* data, char *fullreadenfile)
+{
+	int counter;
+	char q;
+	for (counter = 0; fscanf(data, "%c", &q) != EOF && counter < posibleChar - 1; ++counter)
+		fullreadenfile[counter] = q;
+	fullreadenfile[counter] = '\0';
+	return fullreadenfile;
+}
 
 /*
 	I am searching for dest in source
@@ -30,6 +52,7 @@ int searchinside(char *dest, char *source)
 	{
 		if (strncmp(dest, &source[counter], strlen(dest)) == 0)
 			return 1;
+
 	}
 	return 0;
 }
@@ -122,102 +145,143 @@ int detectingErrorsforToken(FILE *tokenfile)
 }
 
 /*
-	I can only read posibleChar characters from a file.
-	If the file finish before posibleChar,
-	then my job ends.
+	adds the mail to category of spam or not.
+	If isspam = 0 its not spam,
+	else if isspam = 1 its spam.
+	then adds them to linklist of category ALL' spam  or nospam part.
 */
-char *readingFile(FILE* data, char *fullreadenfile)
+category *initmails(category *all, email *mail, int isspam)
 {
-	int counter;
-	char q;
-	for (counter = 0; fscanf(data, "%c", &q) != EOF && counter < posibleChar - 1; ++counter)
-		fullreadenfile[counter] = q;
-	fullreadenfile[counter] = '\0';
-	return fullreadenfile;
-}
-
-/*
-	I am searching for a keyword inside a string,
-	fullreadenfile is the searched string,
-	start is the keyword.
-	If I find keyword, then i update the string with after keyword
-	and return it.
-	If there is no keyword, then I return NULL for saying there will not be keyword.
-*/
-char *whatsAfterThis(char *fullreadenfile, char *start)
-{
-	int counter;
-	for (counter = 0; counter < strlen(fullreadenfile); ++counter)
+	email *now;
+	int placeC = 0;
+	switch (isspam)
 	{
-		if (strncmp(&fullreadenfile[counter], start, strlen(start)) == 0)
+	case 0:
+		if (all->noSpam != 0)
 		{
-			if (counter > 0)
-				return strcpy(fullreadenfile, &fullreadenfile[counter + strlen(start)]);
-			else if (counter == 0)
-				return strcpy(fullreadenfile, &fullreadenfile[counter + strlen(start) - 1]);
+			for (now = all->noSpam; now->next != 0; now = now->next)
+				placeC;
+			now->next = mail;
 		}
+		else
+			all->noSpam = mail;
+		break;
+	case 1:
+		if (all->spam != 0)
+		{
+			for (now = all->spam; now->next != 0; now = now->next)
+				placeC;
+			now->next = mail;
+		}
+		else
+			all->spam = mail;
+		break;
+	default:
+		break;
 	}
-	return "ERROR";
+	mail->mailNumber = placeC;
+	mail->next = 0;
+	return all;
 }
 
 /*
-	I am searching for a keyword in a string.
-	fullreadenfile is the searched string.
-	If i find the keyword, then i return the string before the keyword.
-	I am not update the given string because it possibly cause data loss.
-	If i cant find the keyword in given string,
-	Then i return ERROR as there is no keyword.
+	Searching the mail index in given array and parses it subject and object.
+	Adds them to email typed themail' subject and body array. 
+	links the next email to next part of themail. Linkslist' tail 
 */
-char *whatsBeforeThis(char *fullreadenfile, char *finish, char *whatsBefore)
+email *parsingoneMail(char *subNbody, email *theMail, int witchmail)
 {
-	int counter;
-	for (counter = 0; counter < strlen(fullreadenfile); ++counter)
+	email *newmail = (email *)malloc(sizeof (email));;
+	email *now;
+	if(theMail != 0)
 	{
-		if (strncmp(&fullreadenfile[counter], finish, strlen(finish)) == 0)
-			return strcpy(strncpy(whatsBefore, fullreadenfile, counter), 0);
+		for (now = theMail; now->next != 0; now = now->next);
+		now->next = newmail;
+		newmail->next = 0;
 	}
-	return "ERROR";
-}
-
-/*
-	I am searching for 2 keywords in a string.
-	fullreadenfile is the searched string.
-	I'm finding the string between first keyword and sec keyword.
-	I'm searching with early defined functions "whatsAfterThis" and "whatsBeforeThis".
-	I return the string between them.
-	If there will be some errors, then return value will be ERROR.
-*/
-char *whatsBetweenThese(char *fullreadenfile, char *start, char *finish, char *placetoPut)
-{
-	whatsBeforeThis(fullreadenfile, finish, placetoPut);
-	whatsAfterThis(placetoPut, start);
-	whatsAfterThis(fullreadenfile, finish);
-	return placetoPut;
-}
-
-/*
-	I am the hearth of all early defined functions.
-	I am using all of them inside me.
-	My job is finding <email> , </email> tags to finding emails
-	Then I find <Subject>, </Subject tags to find the subject
-	After that I find <Body>, </Body> tags and find the body.
-	I need opened file pointer, two double dimentional arrays to put subject and body.
-*/
-email *parsingoneMail(char *subNbody, email *newmail, int witchmail)
-{
+	else
+	{
+		theMail = newmail;
+		newmail->next = 0;
+	}
 	newmail->mailNumber = witchmail;
-	strcat(strcpy(subNbody, &subNbody[searchtheposition("<subject>", subNbody) + strlen("<subject>")]), "\0");
-	strcat(strncpy(newmail->subject, subNbody, searchtheposition("</subject>", subNbody) - 1), "\0");
-	strcat(strcpy(subNbody, &subNbody[searchtheposition("<body>", subNbody) + strlen("<body>")]), "\0");
-	strcat(strncpy(newmail->body, subNbody, searchtheposition("</body>", subNbody) - 1), "\0");
-	return newmail;
+	strcat(strcpy(subNbody, &subNbody[searchtheposition("<Subject>", subNbody) + strlen("<Subject>")]), "\0");
+	strcat(strncpy(newmail->subject, subNbody, searchtheposition("</Subject>", subNbody)), "\0");
+	strcat(strcpy(subNbody, &subNbody[searchtheposition("<Body>", subNbody) + strlen("<Body>")]), "\0");
+	strcat(strncpy(newmail->body, subNbody, searchtheposition("</Body>", subNbody)), "\0");
+	return theMail;
 }
 
-token *parsingoneToken(char all[posibleChar], token *newtoken)
+/*
+	Searching the token index in given array and parses it value and name.
+	adds them to token typed thetoken' name and value parts.
+	liks the next token to next part of theToken. Linklist' tail.
+*/
+token *parsingoneToken(char all[posibleChar], token *theToken)
 {
-	strncpy(newtoken->name, all, searchtheposition("=", all));
-	sscanf(&all[searchtheposition("=", all) + 1], "%d", &newtoken->value);
-	return newtoken;
+	token *newToken = (token *)malloc(sizeof(token));;
+	token *now;
+	if (theToken != 0)
+	{
+		for (now = theToken; now->next != 0; now = now->next);
+		now->next = newToken;
+		newToken->next = 0;
+	}
+	else
+	{
+		theToken = newToken;
+		newToken->next = 0;
+	}
+	strncpy(theToken->name, all, searchtheposition("=", all));
+	sscanf(&all[searchtheposition("=", all) + 1], "%d", &theToken->value);
+	return newToken;
+}
+
+/*
+	searching all mails for keywords of tokens.
+	returns the categorised index.
+*/
+category *spamdetector(category *isSpam, email *mail, token *keyword)
+{
+	int forthisKeyinS = 0, forthisKeyinB = 0, allofKeys = 0, placer = 0, found = 0;
+	email *now;
+	token *spam;
+	/*searching for all mails and categorising them as spam or not*/
+	for (now = mail; now != 0; now = now->next)
+	{
+		/*searching for all tokens*/
+		for (spam = keyword; spam != 0 && found == 0; spam = spam->next)
+		{
+			/*searching how many keyword in subject*/
+			do
+			{
+				forthisKeyinS += searchinside(spam->name, &mail->subject[placer]);
+				placer += searchtheposition(spam->name, &mail->subject[placer])
+					+ strlen(spam->name);
+			} while (forthisKeyinS > 0);
+			/*searching how many keyword in body*/
+			do
+			{
+				forthisKeyinB += searchinside(spam->name, &mail->body[placer]);
+				placer += searchtheposition(spam->name, &mail->body[placer])
+					+ strlen(spam->name);
+			} while (forthisKeyinB > 0);
+			/*2. requirement search.*/
+			allofKeys += forthisKeyinS + forthisKeyinB;
+			/*If we found the mail as spam then adding inside to categorised list*/
+			if (forthisKeyinS + forthisKeyinB == spam->value || allofKeys >= 3)
+			{
+				initmails(isSpam, now, 1);
+				++found;
+			}
+			/*after the detecting spams we need to refresh the mind*/
+			forthisKeyinS = forthisKeyinB = 0;
+		}
+		initmails(isSpam, now, 0);
+		/*2. requirement of spam work*/
+		allofKeys = 0;
+	}
+	return isSpam;
 }
 
 void main()
@@ -226,29 +290,45 @@ void main()
 	int error = detectingErrorsforToken(Foftoken) + detectErrorsforEmail(Fofmail);
 	if (error == 0)
 	{
+		/*RETURNING THE START OF FILES*/
 		fseek(Fofmail, SEEK_SET, 0);
 		fseek(Foftoken, SEEK_SET, 0);
+		/*CATEGORY DEF*/
+		category *categorysedmail = { NULL };
 		/*EMAIL DEF*/
-		email *tempMail = (email *)malloc(sizeof(email));
+		email *tempMail = { NULL };
 		int mailnumber = 0;
 		char all[posibleChar], mailindex[posibleChar];
 		/*TOKEN DEF*/
-		token *tempToken = (token *)malloc(sizeof(token));
+		token *tempToken = { NULL };
 		char *end;
-		/*NECESSARY THINGS*/
+		/*ALL OF MAIL FILE*/
 		readingFile(Fofmail, all);
-		for (mailnumber; searchinside("<email>", all) != 0; ++mailnumber)
+		/*PARSING MAIL*/
+		do
 		{
+			/*The first mail capturing*/
 			strcpy(all, &all[searchtheposition("<email>", all) + strlen("<email>")]);
 			strcat(all, "\0");
-			strncpy(mailindex, all, searchtheposition("</email>", all) - 1);
+			/*Working on only the firs mail*/
+			strncpy(mailindex, all, searchtheposition("</email>", all));
 			strcat(mailindex, "\0");
-			parsingoneMail(mailindex, tempMail, mailnumber);
-			for (end = fgets(all, posibleChar, Foftoken);
-				end != NULL;
-				end = fgets(all, posibleChar, Foftoken))
-					parsingoneToken(all, tempToken);
-		}
+			/*Deleting first mail from array*/
+			strcpy(all, &all[searchtheposition("</email>", all) + strlen("</email>")]);
+			/*Parsing it to subject and body.*/
+			parsingoneMail(mailindex, tempMail, mailnumber++);
+		} while (searchinside("<email>", all) != 0);
+		/*PARSING TOKEN FILE*/
+		do
+		{
+			end = fgets(all, posibleChar, Foftoken);
+			parsingoneToken(all, tempToken);
+			end = fgets(all, posibleChar, Foftoken);
+		} while (end != NULL);
+		/*DETECTING SPAMS*/
+		spamdetector(categorysedmail, tempMail, tempToken);
 	}
+	else
+		return;
 	return;
 }
