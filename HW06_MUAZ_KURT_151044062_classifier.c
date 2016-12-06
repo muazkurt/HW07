@@ -1,3 +1,25 @@
+/*
+	
+	
+	
+	The program checks the mails for tokens.
+
+
+
+	If one of emails and token file has error inside,
+	Then program returns an error message and stop working.
+	If the program have not error then starts checking mails and tokens.
+	If tokens has found as how much expected,
+	The mail will be categorised as spam.
+	If a mail includes 3 tokens in subject or body,
+	The mail will be categorised as spam.
+	If these did not happen, then mail is categorised as safe.
+
+	
+	
+																						MUAZ KURT
+																						151044062
+*/
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
